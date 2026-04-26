@@ -610,7 +610,7 @@ export async function POST(req) {
       };
 
       try {
-        const res = await fetch("https://script.google.com/macros/s/AKfycbwXZsiJAuD6mDXODB665QU5tZfjkepj-39XXGb_nb9-5ckMdb0pHV7bbc8IfeftAXNI/exec", {
+        const res = await fetch(process.env.GOOGLE_SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ data: JSON.stringify(payload) }).toString(),
