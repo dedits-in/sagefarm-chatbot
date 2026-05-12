@@ -32,7 +32,6 @@ function isValidPhone(val) {
 }
 
 // ─── SIP calculator (risk-aware) ──────────────────────────────────────────
-// Conservative: 10–15% of disposable | Moderate: 15–20% | Aggressive: 20–30%
 function calculateSIP(income, savings, riskProfile) {
   const inc = parseFloat(income) || 0;
   const sav = parseFloat(savings) || 0;
@@ -49,8 +48,7 @@ function calculateSIP(income, savings, riskProfile) {
   return { low: Math.max(low, 500), high: Math.max(high, 1000) };
 }
 
-// ─── Corpus projection ────────────────────────────────────────────────────
-// Return rate varies by risk: Conservative 8% | Moderate 10% | Aggressive 12%
+// ─── Corpus projection (flat SIP) ─────────────────────────────────────────
 function projectCorpus(monthlySIP, years, riskProfile) {
   const annualRate =
     riskProfile === "Conservative" ? 0.08 :
@@ -61,42 +59,52 @@ function projectCorpus(monthlySIP, years, riskProfile) {
   return Math.round(corpus);
 }
 
+// ─── Feature 5: Step-up SIP corpus projection ─────────────────────────────
+// Simulates 10% annual SIP increase — month by month
+function projectStepUpCorpus(initialSIP, years, riskProfile) {
+  const annualRate =
+    riskProfile === "Conservative" ? 0.08 :
+    riskProfile === "Aggressive"   ? 0.12 : 0.10;
+  const monthlyRate = annualRate / 12;
+  let corpus = 0;
+  let currentSIP = initialSIP;
+
+  for (let year = 0; year < years; year++) {
+    for (let month = 0; month < 12; month++) {
+      corpus = (corpus + currentSIP) * (1 + monthlyRate);
+    }
+    // Increase SIP by 10% every year
+    currentSIP = Math.round(currentSIP * 1.10);
+  }
+  return Math.round(corpus);
+}
+
 function formatINR(amount) {
   if (amount >= 1_00_00_000) return `₹${(amount / 1_00_00_000).toFixed(2)} Cr`;
   if (amount >= 1_00_000)    return `₹${(amount / 1_00_000).toFixed(2)} L`;
   return `₹${Number(amount).toLocaleString("en-IN")}`;
 }
 
-// ─── Risk profiling engine ────────────────────────────────────────────────
-// Scores age, dependents, and job stability → Conservative / Moderate / Aggressive
+// ─── Risk profiling engine ─────────────────────────────────────────────────
 function calculateRiskProfile(age, dependents, jobStability) {
   let score = 0;
-
-  // Age: younger = can take more risk
   if (age <= 30)      score += 3;
   else if (age <= 45) score += 2;
   else if (age <= 55) score += 1;
-  // age > 55 → 0 points (near retirement, low risk)
-
-  // Dependents: fewer = more risk capacity
   if (dependents === 0)      score += 3;
   else if (dependents <= 2)  score += 2;
   else                       score += 1;
-
-  // Job stability: stable job = can handle volatility
-  if (jobStability === "stable")   score += 3;
+  if (jobStability === "stable")       score += 3;
   else if (jobStability === "moderate") score += 2;
-  else                             score += 1; // freelance/uncertain
-
-  // Score: 3–9
+  else                                  score += 1;
   if (score >= 7) return "Aggressive";
   if (score >= 5) return "Moderate";
   return "Conservative";
 }
 
 function getRiskLabel(profile) {
-  if (profile === "Aggressive")   return "🔴 Aggressive";
-  if (profile === "Moderate")     return "🟡 Moderate";
+  if (profile === "Aggressive") return "🔴 Aggressive";
+  if (profile === "Moderate")   return "🟡 Moderate";
   return "🟢 Conservative";
 }
 
@@ -110,13 +118,11 @@ function getRiskFundSuggestion(profile) {
   return "Debt funds, balanced advantage funds, and large cap funds are ideal — capital protection with steady returns.";
 }
 
-// ─── Smart follow-up rules ───────────────────────────────────────────────────
-// Returns a warning/insight string if a rule is triggered, or null if none
+// ─── Smart follow-up rules ─────────────────────────────────────────────────
 function getSmartFollowUp(income, savings, age, riskProfile, goal, timeline) {
   const savingRate = income > 0 ? savings / income : 0;
   const warnings = [];
 
-  // Rule 1: High income, low savings → likely has EMIs or high expenses
   if (income >= 50000 && savingRate < 0.10) {
     warnings.push(
       "⚠️ We noticed your savings rate is below 10% of your income. " +
@@ -124,8 +130,6 @@ function getSmartFollowUp(income, savings, age, riskProfile, goal, timeline) {
       "Our advisor can help you optimise your cash flow before starting a SIP."
     );
   }
-
-  // Rule 2: Very short timeline → equity is risky
   if (timeline < 3) {
     warnings.push(
       "⚠️ With a timeline of less than 3 years, equity mutual funds carry significant risk. " +
@@ -133,20 +137,13 @@ function getSmartFollowUp(income, savings, age, riskProfile, goal, timeline) {
       "Sagefarm can help you pick the right short-term instrument."
     );
   }
-
-  // Rule 3: Retirement goal + age over 50 → urgency flag
-  if (
-    (goal.toLowerCase().includes("retire") || goal.toLowerCase().includes("retirement")) &&
-    age > 50
-  ) {
+  if ((goal.toLowerCase().includes("retire") || goal.toLowerCase().includes("retirement")) && age > 50) {
     warnings.push(
       "⚠️ You're planning retirement after 50 — time is critical here. " +
       "A combination of lump sum investing + monthly SIP can help you catch up faster. " +
       "Our advisor will prioritise your session given the urgency."
     );
   }
-
-  // Rule 4: Aggressive risk profile + short timeline → mismatch
   if (riskProfile === "Aggressive" && timeline < 5) {
     warnings.push(
       "⚠️ Your risk profile is Aggressive, but your timeline is under 5 years. " +
@@ -158,7 +155,7 @@ function getSmartFollowUp(income, savings, age, riskProfile, goal, timeline) {
   return warnings.length > 0 ? warnings.join("\n\n") : null;
 }
 
-// ─── Lead scoring ─────────────────────────────────────────────────────────
+// ─── Lead scoring ──────────────────────────────────────────────────────────
 function scoreLead(income, savings, timeline) {
   const inc = parseFloat(income) || 0;
   const sav = parseFloat(savings) || 0;
@@ -169,11 +166,9 @@ function scoreLead(income, savings, timeline) {
   if (inc >= 1_00_000)     score += 3;
   else if (inc >= 50_000)  score += 2;
   else if (inc >= 25_000)  score += 1;
-
   if (savRate >= 0.3)      score += 3;
   else if (savRate >= 0.2) score += 2;
   else if (savRate >= 0.1) score += 1;
-
   if (yrs >= 15)           score += 3;
   else if (yrs >= 7)       score += 2;
   else if (yrs >= 3)       score += 1;
@@ -183,7 +178,7 @@ function scoreLead(income, savings, timeline) {
   return "❄️ Cold";
 }
 
-// ─── IST timestamp ────────────────────────────────────────────────────────
+// ─── IST timestamp ─────────────────────────────────────────────────────────
 function getISTTimestamp() {
   return new Date().toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -192,7 +187,7 @@ function getISTTimestamp() {
   });
 }
 
-// ─── Goal-aware tip (Sagefarm-branded) ────────────────────────────────────
+// ─── Goal-aware tip ────────────────────────────────────────────────────────
 function getGoalTip(goal, years) {
   const g = goal.toLowerCase();
   if (g.includes("retire") || g.includes("retirement")) {
@@ -212,12 +207,12 @@ function getGoalTip(goal, years) {
   return "📌 Sagefarm's philosophy: investing is a 20-year marathon, not a 6-month sprint. Consistency and the right asset mix make all the difference.";
 }
 
-// ─── Step order (for "back" support) ─────────────────────────────────────
+// ─── Step order ────────────────────────────────────────────────────────────
 const STEP_ORDER = [
   "start", "income", "savings",
-  "emergency_fund",                        // ← emergency fund check
-  "existing_investments",                  // ← existing investments check
-  "age", "dependents", "job_stability",   // ← risk profiling steps
+  "emergency_fund",
+  "existing_investments",
+  "age", "dependents", "job_stability",
   "goal", "timeline",
   "conversion", "name", "email", "phone", "done"
 ];
@@ -230,20 +225,20 @@ function getPreviousStep(currentStep) {
 
 function getStepQuestion(step) {
   const questions = {
-    income:        "What's your monthly income? (in ₹)",
-    savings:       "How much do you save every month? (in ₹)",
-    emergency_fund: "Do you have an emergency fund?\n\nThis means 3–6 months of your expenses saved separately (not your regular savings).\n\n• Yes, I have one\n• Partial — I have some\n• No, I don't",
-    existing_investments: "Do you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I\'m starting fresh",
-    age:           "How old are you?",
-    dependents:    "How many dependents do you have? (spouse, kids, parents who rely on your income)\n\nType a number: 0, 1, 2, 3...",
-    job_stability: "How stable is your income?\n\n• Stable (salaried, government job)\n• Moderate (private job, some uncertainty)\n• Variable (freelance, business, commission-based)",
-    goal:          "What's your main financial goal?\n\n• Retirement\n• Buying a house\n• Wealth creation\n• Child's education",
-    timeline:      "In how many years do you want to achieve this?",
+    income:               "What's your monthly income? (in ₹)",
+    savings:              "How much do you save every month? (in ₹)",
+    emergency_fund:       "Do you have an emergency fund?\n\nThis means 3–6 months of your expenses saved separately.\n\n• Yes, I have one\n• Partial — I have some\n• No, I don't",
+    existing_investments: "Do you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I'm starting fresh",
+    age:                  "How old are you?",
+    dependents:           "How many dependents do you have?\n\nType a number: 0, 1, 2, 3...",
+    job_stability:        "How stable is your income?\n\n• Stable (salaried, government job)\n• Moderate (private job, some uncertainty)\n• Variable (freelance, business, commission-based)",
+    goal:                 "What's your main financial goal?\n\n• Retirement\n• Buying a house\n• Wealth creation\n• Child's education",
+    timeline:             "In how many years do you want to achieve this?",
   };
   return questions[step] || null;
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────
+// ─── Main handler ──────────────────────────────────────────────────────────
 export async function POST(req) {
   const body = await req.json();
   const msg = (body.message || "").trim();
@@ -257,11 +252,29 @@ export async function POST(req) {
   const msgLower = msg.toLowerCase();
   let reply = "";
 
-  // ── Global commands ───────────────────────────────────────────────────
+  // ── Global commands ────────────────────────────────────────────────────
 
   if (msgLower === "restart" || msgLower === "reset" || msgLower === "start over") {
     sessions.set(sessionId, { step: "income", history: [] });
     return Response.json({ reply: "Sure! Let's start fresh. 🔄\n\nWhat's your monthly income? (in ₹)" });
+  }
+
+  // ── Feature 6: Inactivity nudge handler ─────────────────────────────────
+  if (msg === "__inactivity__") {
+    // Only nudge if mid-conversation (not done or start)
+    const activeSteps = ["income","savings","emergency_fund","existing_investments",
+                         "age","dependents","job_stability","goal","timeline","conversion",
+                         "name","email","phone"];
+    if (!activeSteps.includes(userState.step)) {
+      return Response.json({ reply: "" }); // no nudge if not mid-flow
+    }
+    const nudges = [
+      "Still there? 😊 Take your time — I'm here whenever you're ready.",
+      "No rush at all! Whenever you're ready, just continue. 🌿",
+      "Just checking in — feel free to continue when you're ready! 👋",
+    ];
+    const nudge = nudges[Math.floor(Math.random() * nudges.length)];
+    return Response.json({ reply: nudge });
   }
 
   if (msgLower === "help") {
@@ -286,7 +299,7 @@ export async function POST(req) {
     return Response.json({ reply: `No problem! Let's redo this.\n\n${question}` });
   }
 
-  // ── Step machine ──────────────────────────────────────────────────────
+  // ── Step machine ───────────────────────────────────────────────────────
 
   // STEP 1 — Start
   if (userState.step === "start") {
@@ -335,7 +348,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 4 — Emergency Fund Check
+  // STEP 4 — Emergency Fund
   else if (userState.step === "emergency_fund") {
     const hasYes     = ["yes", "yeah", "yep", "have", "i do", "got", "haan", "y"].some(w => msgLower.includes(w));
     const hasPartial = ["partial", "some", "little", "bit", "kuch", "thoda", "not fully", "not complete"].some(w => msgLower.includes(w));
@@ -347,10 +360,9 @@ export async function POST(req) {
         "Good start! 👍 Having some buffer is better than none.\n\n" +
         "Ideally, aim to top it up to cover 6 months of expenses. " +
         "You can do this alongside your SIP — our advisors often split the initial allocation between an emergency liquid fund and a long-term SIP.\n\n" +
-        "Before we dive into risk profiling, one more quick question.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I\'m starting fresh";
+        "Before we dive into risk profiling, one more quick question.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I'm starting fresh";
     } else if (hasNo) {
       userState.emergencyFund = "no";
-      // Calculate a rough emergency fund target (3 months of expenses = income - savings)
       const monthlyExpense = userState.income - userState.savings;
       const target = monthlyExpense * 3;
       reply =
@@ -358,31 +370,28 @@ export async function POST(req) {
         `Based on your income and savings, your monthly expenses are around ${formatINR(monthlyExpense)}.\n` +
         `A 3-month emergency fund would be ${formatINR(target)} — kept in a liquid fund or savings account, not invested.\n\n` +
         "The good news: you don't have to build it all at once. " +
-        "Sagefarm advisors often recommend starting a small SIP *and* building your emergency fund in parallel — we'll plan this together.\n\n" +
-        "For now, let\'s continue with your investment plan.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I\'m starting fresh";
+        "Sagefarm advisors often recommend starting a small SIP and building your emergency fund in parallel — we'll plan this together.\n\n" +
+        "For now, let's continue.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I'm starting fresh";
     } else if (hasYes) {
       userState.emergencyFund = "yes";
       reply =
         "Excellent — that's the right foundation! ✅\n\n" +
         "Having an emergency fund means your investments can stay untouched during tough times — " +
         "one of the biggest reasons people break their SIPs prematurely.\n\n" +
-        "Before we dive into risk profiling, one more quick question.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I'm starting fresh";
+        "One more quick question.\n\nDo you currently have any investments?\n\n• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n• No — I'm starting fresh";
     } else {
-      reply =
-        "Please choose one of the options:\n\n" +
-        "• Yes, I have one\n• Partial — I have some\n• No, I don't";
+      reply = "Please choose one of the options:\n\n• Yes, I have one\n• Partial — I have some\n• No, I don't";
     }
 
-    // All paths except invalid lead to existing_investments step
     if (hasYes || hasPartial || hasNo) {
       userState.step = "existing_investments";
     }
   }
 
-  // STEP 5 — Existing Investments Check
+  // STEP 5 — Existing Investments
   else if (userState.step === "existing_investments") {
     const hasYesInv = ["yes", "yeah", "yep", "have", "i do", "got", "haan", "sip", "fd", "stock", "gold", "ppf", "mutual", "real estate", "property"].some(w => msgLower.includes(w));
-    const hasNoInv  = ["no", "don\'t", "dont", "nahi", "nope", "fresh", "starting", "nothing", "none"].some(w => msgLower.includes(w));
+    const hasNoInv  = ["no", "don't", "dont", "nahi", "nope", "fresh", "starting", "nothing", "none"].some(w => msgLower.includes(w));
 
     if (hasYesInv) {
       userState.existingInvestments = "yes";
@@ -391,28 +400,25 @@ export async function POST(req) {
         "Sagefarm specialises in portfolio review and optimisation. " +
         "Our advisors will analyse what you already hold, identify gaps, remove underperformers, " +
         "and build a cohesive strategy across all your assets — not just add more SIPs on top.\n\n" +
-        "Now let\'s understand your risk appetite so we can give you the right advice.\n\nHow old are you?";
+        "Now let's understand your risk appetite.\n\nHow old are you?";
     } else if (hasNoInv) {
       userState.existingInvestments = "no";
       reply =
-        "Starting fresh — that\'s actually a great position to be in! 🌱\n\n" +
+        "Starting fresh — that's actually a great position to be in! 🌱\n\n" +
         "You get to build the right portfolio from the ground up, without any legacy products to untangle. " +
-        "Sagefarm will design your entire investment strategy from scratch — " +
-        "across mutual funds, gold, FDs, and more — based purely on your goals.\n\n" +
-        "Let\'s understand your risk appetite first.\n\nHow old are you?";
+        "Sagefarm will design your entire investment strategy from scratch.\n\n" +
+        "Let's understand your risk appetite first.\n\nHow old are you?";
     } else {
       reply =
-        "Please let me know whether you have existing investments:\n\n" +
+        "Please let me know:\n\n" +
         "• Yes — SIPs, stocks, FDs, PPF, gold, real estate, etc.\n" +
-        "• No — I\'m starting fresh";
+        "• No — I'm starting fresh";
     }
 
-    if (hasYesInv || hasNoInv) {
-      userState.step = "age";
-    }
+    if (hasYesInv || hasNoInv) userState.step = "age";
   }
 
-  // STEP 6 — Age (Risk Profiling Q1)
+  // STEP 6 — Age
   else if (userState.step === "age") {
     const age = parseInt(msg);
     if (isNaN(age) || age < 18 || age > 80) {
@@ -427,7 +433,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 5 — Dependents (Risk Profiling Q2)
+  // STEP 7 — Dependents
   else if (userState.step === "dependents") {
     const dep = parseInt(msg);
     if (isNaN(dep) || dep < 0 || dep > 20) {
@@ -444,7 +450,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 6 — Job Stability (Risk Profiling Q3) → compute risk profile
+  // STEP 8 — Job Stability → compute risk profile
   else if (userState.step === "job_stability") {
     let stability = null;
     if (msgLower.includes("stable") || msgLower.includes("salaried") || msgLower.includes("government") || msgLower === "1") {
@@ -459,13 +465,9 @@ export async function POST(req) {
       reply = "Please choose one of the options:\n\n• Stable\n• Moderate\n• Variable";
     } else {
       userState.jobStability = stability;
-
-      // Calculate risk profile
       const profile = calculateRiskProfile(userState.age, userState.dependents, stability);
       userState.riskProfile = profile;
-
       const fundSuggestion = getRiskFundSuggestion(profile);
-
       reply =
         `✅ Risk Profile: ${getRiskLabel(profile)}\n\n` +
         `Based on your age (${userState.age}), dependents (${userState.dependents}), and income stability, ` +
@@ -477,7 +479,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 7 — Goal
+  // STEP 9 — Goal
   else if (userState.step === "goal") {
     if (msg.length < 2) {
       reply = "Please tell me your goal.\n\nFor example: Retirement, Buying a house, Wealth creation";
@@ -488,7 +490,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 8 — Timeline + Risk-aware SIP plan
+  // STEP 10 — Timeline + SIP Plan + Feature 5 Step-up SIP
   else if (userState.step === "timeline") {
     const years = parseFloat(msg);
     if (isNaN(years) || years < 1 || years > 50) {
@@ -498,14 +500,22 @@ export async function POST(req) {
       try {
         const profile = userState.riskProfile || "Moderate";
         const { low, high } = calculateSIP(userState.income, userState.savings, profile);
+
+        // Flat SIP corpus
         const corpusLow  = projectCorpus(low,  years, profile);
         const corpusHigh = projectCorpus(high, years, profile);
+
+        // ── Feature 5: Step-up SIP corpus ──────────────────────────────
+        const stepUpCorpusLow  = projectStepUpCorpus(low,  years, profile);
+        const stepUpCorpusHigh = projectStepUpCorpus(high, years, profile);
+        const stepUpLowFinal   = Math.round(low  * (1.10 ** years)); // SIP after step-ups
+        const stepUpHighFinal  = Math.round(high * (1.10 ** years));
+
         const tip = getGoalTip(userState.goal, years);
         const annualReturn =
           profile === "Conservative" ? "8%" :
           profile === "Aggressive"   ? "12%" : "10%";
 
-        // Check for smart follow-up warnings
         const followUpWarning = getSmartFollowUp(
           userState.income, userState.savings,
           userState.age, profile,
@@ -520,9 +530,13 @@ export async function POST(req) {
           `Goal:         ${userState.goal}\n` +
           `Timeline:     ${years} years\n\n` +
           `💡 Recommended SIP: ${formatINR(low)} – ${formatINR(high)}/month\n\n` +
-          `📈 Projected corpus in ${years} years:\n` +
+          `📈 Flat SIP corpus in ${years} years:\n` +
           `   ${formatINR(low)}/month → ${formatINR(corpusLow)}\n` +
           `   ${formatINR(high)}/month → ${formatINR(corpusHigh)}\n\n` +
+          `🚀 Step-up SIP corpus (10% increase every year):\n` +
+          `   Start ${formatINR(low)}/month → grow to ${formatINR(stepUpLowFinal)}/month → corpus ${formatINR(stepUpCorpusLow)}\n` +
+          `   Start ${formatINR(high)}/month → grow to ${formatINR(stepUpHighFinal)}/month → corpus ${formatINR(stepUpCorpusHigh)}\n\n` +
+          `💡 Step-up SIP builds ${formatINR(stepUpCorpusHigh - corpusHigh)} more wealth than a flat SIP!\n\n` +
           `(Assuming ${annualReturn} annual returns based on your ${profile.toLowerCase()} risk profile)\n\n` +
           `${tip}\n\n` +
           (followUpWarning ? `${followUpWarning}\n\n` : "") +
@@ -537,7 +551,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 9 — Conversion
+  // STEP 11 — Conversion
   else if (userState.step === "conversion") {
     const yes = ["yes", "yeah", "yep", "sure", "ok", "okay", "haan", "ha", "yup", "definitely", "y"].some(
       (w) => msgLower === w || msgLower.startsWith(w + " ")
@@ -557,7 +571,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 10 — Name
+  // STEP 12 — Name
   else if (userState.step === "name") {
     if (msg.length < 2 || /\d/.test(msg)) {
       reply = "Please enter your real name (no numbers). Example: Rahul";
@@ -570,7 +584,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 11 — Email
+  // STEP 13 — Email
   else if (userState.step === "email") {
     if (!isValidEmail(msg)) {
       reply = "That doesn't look right. Please enter a valid email.\n\nExample: rahul@gmail.com";
@@ -581,7 +595,7 @@ export async function POST(req) {
     }
   }
 
-  // STEP 12 — Phone + Lead capture
+  // STEP 14 — Phone + Lead capture
   else if (userState.step === "phone") {
     const cleaned = msg.replace(/\s+/g, "").replace(/^(\+91|91)/, "");
     if (!isValidPhone(cleaned)) {
@@ -591,22 +605,22 @@ export async function POST(req) {
       const leadScore = scoreLead(userState.income, userState.savings, userState.timeline);
 
       const payload = {
-        name:         userState.name,
-        email:        userState.email,
-        phone:        userState.phone,
-        income:       userState.income,
-        savings:      userState.savings,
-        emergencyFund: userState.emergencyFund,
+        name:                userState.name,
+        email:               userState.email,
+        phone:               userState.phone,
+        income:              userState.income,
+        savings:             userState.savings,
+        emergencyFund:       userState.emergencyFund,
         existingInvestments: userState.existingInvestments,
-        age:          userState.age,
-        dependents:   userState.dependents,
-        jobStability: userState.jobStability,
-        riskProfile:  userState.riskProfile,
-        goal:         userState.goal,
-        timeline:     userState.timeline,
-        leadScore:    leadScore,
-        source:       "Website Chatbot",
-        timestamp:    getISTTimestamp(),
+        age:                 userState.age,
+        dependents:          userState.dependents,
+        jobStability:        userState.jobStability,
+        riskProfile:         userState.riskProfile,
+        goal:                userState.goal,
+        timeline:            userState.timeline,
+        leadScore:           leadScore,
+        source:              "Website Chatbot",
+        timestamp:           getISTTimestamp(),
       };
 
       try {
