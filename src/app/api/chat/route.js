@@ -35,7 +35,7 @@ function isValidPhone(val) {
 function calculateSIP(income, savings, riskProfile) {
   const inc = parseFloat(income) || 0;
   const sav = parseFloat(savings) || 0;
-  const disposable = inc - sav;
+  const disposable = sav; // invest from savings, not from expenses
   if (disposable <= 0) return { low: 1000, high: 2000 };
 
   let lowPct = 0.15, highPct = 0.25;
@@ -540,7 +540,11 @@ export async function POST(req) {
           `(Assuming ${annualReturn} annual returns based on your ${profile.toLowerCase()} risk profile)\n\n` +
           `${tip}\n\n` +
           (followUpWarning ? `${followUpWarning}\n\n` : "") +
-          `👉 Would you like a Sagefarm advisor to reach out with a detailed, personalised plan? (yes/no)\n\nOur advisors do a one-on-one risk profiling session — no sales pressure, just clarity.`;
+          `💡 This is your **starting SIP recommendation**. The rest of your savings can go towards your emergency fund, debt repayment, or lumpsum investments.\n\n` +
+          `⚠️ **Note:** This plan is based on general inputs. Your actual investable amount depends on your **liabilities (loans, EMIs), fixed expenses, and financial goals** — which only a detailed review can uncover.\n\n` +
+          `**Want a 100% personalised plan?**\n\n` +
+          `Our advisor will analyse your **complete financial picture** — including loans, expenses, and goals — and tell you **exactly how much to invest and where.**\n\n` +
+          `👉 Type **yes** for a personalised session or **no** to keep the general plan.`;
       } catch (e) {
         console.error("SIP calculation error:", e);
         reply =

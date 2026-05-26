@@ -6,7 +6,15 @@ import { useState, useEffect, useRef } from "react";
 function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
-
+function formatText(text) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
 export default function Home() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -21,18 +29,47 @@ export default function Home() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  useEffect(() => {
+  // Don't nudge if no conversation started or already finished
+  if (messages.length === 0) return;
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role !== "bot") return;
+
+  const timer = setTimeout(async () => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "__inactivity__",
+          sessionId,
+        }),
+      });
+      const data = await res.json();
+      // Only show nudge if reply is not empty
+      if (data.reply && data.reply.trim() !== "") {
+        setMessages((prev) => [
+          ...prev,
+          { role: "bot", text: data.reply, time: new Date(), },
+        ]);
+      }
+    } catch {
+      // Silently fail — nudge is not critical
+    }
+  }, 30000); // 30 seconds of inactivity
+
+  return () => clearTimeout(timer);
+}, [messages]);
+
   const sendMessage = async () => {
     if (!input.trim() || isTyping) return;
 
     const userMessage = input;
 
     setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        text: userMessage,
-      },
-    ]);
+  ...prev,
+  { role: "user", text: userMessage, time: new Date() },
+  ]);
 
     setInput("");
     setIsTyping(true);
@@ -56,6 +93,7 @@ export default function Home() {
         {
           role: "bot",
           text: data.reply,
+          time: new Date(),
         },
       ]);
     } catch (error) {
@@ -64,6 +102,7 @@ export default function Home() {
         {
           role: "bot",
           text: "Something went wrong. Please try again.",
+          time: new Date(),
         },
       ]);
     } finally {
@@ -221,10 +260,35 @@ export default function Home() {
                     key={chip}
                     className="chip"
                     style={styles.chip}
-                    onClick={() => {
-                      setInput(chip);
-                      inputRef.current?.focus();
-                    }}
+                    onClick={async () => {
+  if (isTyping) return;
+
+  setMessages((prev) => [
+    ...prev,
+    { role: "user", text: chip },
+  ]);
+  setIsTyping(true);
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: chip, sessionId }),
+    });
+    const data = await res.json();
+    setMessages((prev) => [
+      ...prev,
+      { role: "bot", text: data.reply, time: new Date(),},
+    ]);
+  } catch {
+    setMessages((prev) => [
+      ...prev,
+      { role: "bot", text: "Something went wrong. Please try again.", time: new Date(), },
+    ]);
+  } finally {
+    setIsTyping(false);
+  }
+}}
                   >
                     {chip}
                   </button>
@@ -268,13 +332,13 @@ export default function Home() {
               >
                 {msg.text.split("\n").map((line, index) => (
                 <span key={index}>
-                {line}
+                {formatText(line)}
                 <br />
-              </span>
-              ))}
+                </span>
+                ))}
 
                 <div style={styles.time}>
-                  {new Date().toLocaleTimeString("en-IN", {
+                  {(msg.time || new Date()).toLocaleTimeString("en-IN", {
                     hour: "2-digit",
                     minute: "2-digit",
                     hour12: true,
