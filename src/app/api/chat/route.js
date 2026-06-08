@@ -35,7 +35,7 @@ function isValidPhone(val) {
 function calculateSIP(income, savings, riskProfile) {
   const inc = parseFloat(income) || 0;
   const sav = parseFloat(savings) || 0;
-  const disposable = sav; // invest from savings, not from expenses
+  const disposable = inc - sav;
   if (disposable <= 0) return { low: 1000, high: 2000 };
 
   let lowPct = 0.15, highPct = 0.25;
@@ -526,25 +526,21 @@ export async function POST(req) {
           `Here's your personalised plan 📊\n\n` +
           `Income:       ${formatINR(userState.income)}/month\n` +
           `Savings:      ${formatINR(userState.savings)}/month\n` +
-          `Risk profile: ${getRiskLabel(profile)}\n` +
+          `` +
           `Goal:         ${userState.goal}\n` +
           `Timeline:     ${years} years\n\n` +
-          `💡 Recommended SIP: ${formatINR(low)} – ${formatINR(high)}/month\n\n` +
+          `💡 **Recommended SIP: ${formatINR(low)} – ${formatINR(high)}/month**\n\n` +
           `📈 Flat SIP corpus in ${years} years:\n` +
           `   ${formatINR(low)}/month → ${formatINR(corpusLow)}\n` +
           `   ${formatINR(high)}/month → ${formatINR(corpusHigh)}\n\n` +
           `🚀 Step-up SIP corpus (10% increase every year):\n` +
           `   Start ${formatINR(low)}/month → grow to ${formatINR(stepUpLowFinal)}/month → corpus ${formatINR(stepUpCorpusLow)}\n` +
           `   Start ${formatINR(high)}/month → grow to ${formatINR(stepUpHighFinal)}/month → corpus ${formatINR(stepUpCorpusHigh)}\n\n` +
-          `💡 Step-up SIP builds ${formatINR(stepUpCorpusHigh - corpusHigh)} more wealth than a flat SIP!\n\n` +
-          `(Assuming ${annualReturn} annual returns based on your ${profile.toLowerCase()} risk profile)\n\n` +
+          `💡 **Step-up SIP builds ${formatINR(stepUpCorpusHigh - corpusHigh)} more wealth than a flat SIP!**\n\n` +
+          `(Projected at ${annualReturn} p.a. — based on historical Nifty 50 long-term average returns)\n\n` +
           `${tip}\n\n` +
           (followUpWarning ? `${followUpWarning}\n\n` : "") +
-          `💡 This is your **starting SIP recommendation**. The rest of your savings can go towards your emergency fund, debt repayment, or lumpsum investments.\n\n` +
-          `⚠️ **Note:** This plan is based on general inputs. Your actual investable amount depends on your **liabilities (loans, EMIs), fixed expenses, and financial goals** — which only a detailed review can uncover.\n\n` +
-          `**Want a 100% personalised plan?**\n\n` +
-          `Our advisor will analyse your **complete financial picture** — including loans, expenses, and goals — and tell you **exactly how much to invest and where.**\n\n` +
-          `👉 Type **yes** for a personalised session or **no** to keep the general plan.`;
+          `💡 **Sagefarm advisors go beyond the numbers.** They look at your full financial life — income, expenses, loans, goals, and tax situation — and build a plan designed to make every rupee work harder for you. **Clients who invest with a personalised strategy consistently see better outcomes than those on a general plan.** \n \n 👉 **Type YES to connect with a Sagefarm advisor and unlock your full potential** — or no to keep this as your reference plan. 🌿`;
       } catch (e) {
         console.error("SIP calculation error:", e);
         reply =
