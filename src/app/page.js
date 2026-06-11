@@ -254,7 +254,6 @@ export default function Home() {
                 {[
                   "Say hi to start 👋",
                   "How does this work?",
-                  "What is SIP?",
                 ].map((chip) => (
                   <button
                     key={chip}

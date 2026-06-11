@@ -421,8 +421,8 @@ export async function POST(req) {
   // STEP 6 — Age
   else if (userState.step === "age") {
     const age = parseInt(msg);
-    if (isNaN(age) || age < 18 || age > 80) {
-      reply = "Please enter a valid age between 18 and 80.";
+    if (isNaN(age) || age < 0 || age > 99) {
+      reply = "Please enter a valid age between 0 and 99.";
     } else {
       userState.age = age;
       reply =
@@ -469,13 +469,11 @@ export async function POST(req) {
       userState.riskProfile = profile;
       const fundSuggestion = getRiskFundSuggestion(profile);
       reply =
-        `✅ Risk Profile: ${getRiskLabel(profile)}\n\n` +
-        `Based on your age (${userState.age}), dependents (${userState.dependents}), and income stability, ` +
-        `you have a ${profile.toLowerCase()} risk appetite.\n\n` +
-        `${fundSuggestion}\n\n` +
-        `Now let's set your goal. What's your main financial goal?\n\n` +
-        `• Retirement\n• Buying a house\n• Wealth creation\n• Child's education`;
-      userState.step = "goal";
+      `✅ Your Risk Profile: ${getRiskLabel(profile)}\n\n` +
+      `Based on your age (${userState.age}), dependents (${userState.dependents}), and income stability, ` +
+     `you have a ${profile.toLowerCase()} risk appetite.\n\n` +
+      `Now let's set your goal. What's your main financial goal?\n\n` +
+      `• Retirement\n• Buying a house\n• Wealth creation\n• Child's education\n• Medical\n• Marriage\n• Business`;
     }
   }
 
@@ -505,6 +503,10 @@ export async function POST(req) {
         const corpusLow  = projectCorpus(low,  years, profile);
         const corpusHigh = projectCorpus(high, years, profile);
 
+        // Always show flat corpus at 12% for illustration
+        const corpusLowEx  = projectCorpus(low,  years, "Aggressive");
+        const corpusHighEx = projectCorpus(high, years, "Aggressive");
+
         // ── Feature 5: Step-up SIP corpus ──────────────────────────────
         const stepUpCorpusLow  = projectStepUpCorpus(low,  years, profile);
         const stepUpCorpusHigh = projectStepUpCorpus(high, years, profile);
@@ -529,18 +531,18 @@ export async function POST(req) {
           `` +
           `Goal:         ${userState.goal}\n` +
           `Timeline:     ${years} years\n\n` +
-          `💡 **Recommended SIP: ${formatINR(low)} – ${formatINR(high)}/month**\n\n` +
-          `📈 Flat SIP corpus in ${years} years:\n` +
-          `   ${formatINR(low)}/month → ${formatINR(corpusLow)}\n` +
-          `   ${formatINR(high)}/month → ${formatINR(corpusHigh)}\n\n` +
+          `💡 **AI Suggested SIP: ${formatINR(low)} – ${formatINR(high)}/month**\n\n` +
+          `📈 For example, at 12% p.a. your flat SIP grows to:\n` +
+          `   ${formatINR(low)}/month → ${formatINR(corpusLowEx)}\n` +
+          `   ${formatINR(high)}/month → ${formatINR(corpusHighEx)}\n\n` +
           `🚀 Step-up SIP corpus (10% increase every year):\n` +
-          `   Start ${formatINR(low)}/month → grow to ${formatINR(stepUpLowFinal)}/month → corpus ${formatINR(stepUpCorpusLow)}\n` +
-          `   Start ${formatINR(high)}/month → grow to ${formatINR(stepUpHighFinal)}/month → corpus ${formatINR(stepUpCorpusHigh)}\n\n` +
+          `   Start ${formatINR(low)}/month → corpus ${formatINR(stepUpCorpusLow)}\n` +
+          `   Start ${formatINR(high)}/month → corpus ${formatINR(stepUpCorpusHigh)}\n\n` +
           `💡 **Step-up SIP builds ${formatINR(stepUpCorpusHigh - corpusHigh)} more wealth than a flat SIP!**\n\n` +
           `(Projected at ${annualReturn} p.a. — based on historical Nifty 50 long-term average returns)\n\n` +
           `${tip}\n\n` +
           (followUpWarning ? `${followUpWarning}\n\n` : "") +
-          `💡 **Sagefarm advisors go beyond the numbers.** They look at your full financial life — income, expenses, loans, goals, and tax situation — and build a plan designed to make every rupee work harder for you. **Clients who invest with a personalised strategy consistently see better outcomes than those on a general plan.** \n \n 👉 **Type YES to connect with a Sagefarm advisor and unlock your full potential** — or no to keep this as your reference plan. 🌿`;
+          `💡 **Sagefarm advisors go beyond the numbers.** They look at your full financial life — income, expenses, loans, goals, and tax situation — and build a plan designed to make every rupee work harder for you. **Clients who invest with a personalised strategy consistently get better returns than those who invest without a strategy.** \n \n 👉 **Type YES to connect with a Sagefarm advisor and unlock your full potential** — or no to keep this as your reference plan. 🌿`;
       } catch (e) {
         console.error("SIP calculation error:", e);
         reply =
