@@ -469,11 +469,12 @@ export async function POST(req) {
       userState.riskProfile = profile;
       const fundSuggestion = getRiskFundSuggestion(profile);
       reply =
-      `✅ Your Risk Profile: ${getRiskLabel(profile)}\n\n` +
+      `✅ Risk Profile: ${getRiskLabel(profile)}\n\n` +
       `Based on your age (${userState.age}), dependents (${userState.dependents}), and income stability, ` +
-     `you have a ${profile.toLowerCase()} risk appetite.\n\n` +
+      `you have a ${profile.toLowerCase()} risk appetite.\n\n` +
+      `${fundSuggestion}\n\n` +
       `Now let's set your goal. What's your main financial goal?\n\n` +
-      `• Retirement\n• Buying a house\n• Wealth creation\n• Child's education\n• Medical\n• Marriage\n• Business`;
+      `• Retirement\n• Buying a house\n• Wealth creation\n• Child's education`;
     }
   }
 
