@@ -533,9 +533,9 @@ export async function POST(req) {
           `Goal:         ${userState.goal}\n` +
           `Timeline:     ${years} years\n\n` +
           `💡 **AI Suggested SIP: ${formatINR(low)} – ${formatINR(high)}/month**\n\n` +
-          `📈 For example, at 12% p.a. your flat SIP grows to:\n` +
-          `   ${formatINR(low)}/month → ${formatINR(corpusLowEx)}\n` +
-          `   ${formatINR(high)}/month → ${formatINR(corpusHighEx)}\n\n` +
+          `📈 Flat SIP corpus in ${years} years:\n` +
+`   ${formatINR(low)}/month → ${formatINR(corpusLow)}\n` +
+`   ${formatINR(high)}/month → ${formatINR(corpusHigh)}\n\n` +
           `🚀 Step-up SIP corpus (10% increase every year):\n` +
           `   Start ${formatINR(low)}/month → corpus ${formatINR(stepUpCorpusLow)}\n` +
           `   Start ${formatINR(high)}/month → corpus ${formatINR(stepUpCorpusHigh)}\n\n` +
