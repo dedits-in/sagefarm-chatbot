@@ -24,16 +24,24 @@ export default function Home() {
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const nudgeSent = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+// Auto-focus input after every bot message
+useEffect(() => {
+  if (!isTyping) {
+    inputRef.current?.focus();
+  }
+}, [isTyping]);
+
   useEffect(() => {
-  // Don't nudge if no conversation started or already finished
   if (messages.length === 0) return;
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role !== "bot") return;
+  if (nudgeSent.current) return; // ← only nudge once per conversation
 
   const timer = setTimeout(async () => {
     try {
@@ -46,17 +54,17 @@ export default function Home() {
         }),
       });
       const data = await res.json();
-      // Only show nudge if reply is not empty
       if (data.reply && data.reply.trim() !== "") {
+        nudgeSent.current = true; // ← mark as sent so it never fires again
         setMessages((prev) => [
           ...prev,
-          { role: "bot", text: data.reply, time: new Date(), },
+          { role: "bot", text: data.reply, time: new Date() },
         ]);
       }
     } catch {
-      // Silently fail — nudge is not critical
+      // Silently fail
     }
-  }, 30000); // 30 seconds of inactivity
+  }, 30000);
 
   return () => clearTimeout(timer);
 }, [messages]);
@@ -254,7 +262,6 @@ export default function Home() {
                 {[
                   "Say hi to start 👋",
                   "How does this work?",
-                  "What is SIP?",
                 ].map((chip) => (
                   <button
                     key={chip}
