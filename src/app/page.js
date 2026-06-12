@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
+
 function formatText(text) {
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
@@ -15,6 +16,7 @@ function formatText(text) {
     return part;
   });
 }
+
 export default function Home() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -23,51 +25,56 @@ export default function Home() {
   const [inputFocused, setInputFocused] = useState(false);
 
   const bottomRef = useRef(null);
+  const chatAreaRef = useRef(null);
   const inputRef = useRef(null);
   const nudgeSent = useRef(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll only within the chatArea, not the entire page
+    if (bottomRef.current && chatAreaRef.current) {
+      const chatArea = chatAreaRef.current;
+      // Scroll the chatArea container itself
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
   }, [messages, isTyping]);
 
-// Auto-focus input after every bot message
-useEffect(() => {
-  if (!isTyping) {
-    inputRef.current?.focus();
-  }
-}, [isTyping]);
+  useEffect(() => {
+    if (!isTyping) {
+      inputRef.current?.focus();
+    }
+  }, [isTyping]);
 
   useEffect(() => {
-  if (messages.length === 0) return;
-  const lastMessage = messages[messages.length - 1];
-  if (lastMessage?.role !== "bot") return;
-  if (nudgeSent.current) return; // ← only nudge once per conversation
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role !== "bot") return;
+    if (nudgeSent.current) return;
 
-  const timer = setTimeout(async () => {
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "__inactivity__",
-          sessionId,
-        }),
-      });
-      const data = await res.json();
-      if (data.reply && data.reply.trim() !== "") {
-        nudgeSent.current = true; // ← mark as sent so it never fires again
-        setMessages((prev) => [
-          ...prev,
-          { role: "bot", text: data.reply, time: new Date() },
-        ]);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: "__inactivity__",
+            sessionId,
+          }),
+        });
+        const data = await res.json();
+        if (data.reply && data.reply.trim() !== "") {
+          nudgeSent.current = true;
+          setMessages((prev) => [
+            ...prev,
+            { role: "bot", text: data.reply, time: new Date() },
+          ]);
+        }
+      } catch {
+        // Silently fail
       }
-    } catch {
-      // Silently fail
-    }
-  }, 30000);
+    }, 30000);
 
-  return () => clearTimeout(timer);
-}, [messages]);
+    return () => clearTimeout(timer);
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!input.trim() || isTyping) return;
@@ -75,9 +82,9 @@ useEffect(() => {
     const userMessage = input;
 
     setMessages((prev) => [
-  ...prev,
-  { role: "user", text: userMessage, time: new Date() },
-  ]);
+      ...prev,
+      { role: "user", text: userMessage, time: new Date() },
+    ]);
 
     setInput("");
     setIsTyping(true);
@@ -134,10 +141,6 @@ useEffect(() => {
           box-sizing: border-box;
           margin: 0;
           padding: 0;
-        }
-
-        html, body {
-          overflow: hidden;
         }
 
         ::-webkit-scrollbar {
@@ -223,28 +226,8 @@ useEffect(() => {
       `}</style>
 
       <div style={styles.page} className="desktop-container">
-        {/* Header */}
-
-        <header style={styles.header}>
-          <div style={styles.logoSection}>
-            <img
-              src="https://sagefarm.in/wp-content/uploads/2025/02/cropped-Sagefarm-FINAL-TM-Garet-Bold-Garet-light-300dpi.png"
-              alt="Sagefarm"
-              style={styles.logo}
-            />
-          </div>
-
-          <div style={styles.statusContainer}>
-            <div style={styles.onlineDot} />
-            <span style={styles.statusText}>
-              Wealth Advisor • Online
-            </span>
-          </div>
-        </header>
-
         {/* Chat Area */}
-
-        <div style={styles.chatArea}>
+        <div style={styles.chatArea} ref={chatAreaRef}>
           {messages.length === 0 && (
             <div style={styles.emptyState}>
               <div style={styles.emptyIcon}>🌿</div>
@@ -268,34 +251,34 @@ useEffect(() => {
                     className="chip"
                     style={styles.chip}
                     onClick={async () => {
-  if (isTyping) return;
+                      if (isTyping) return;
 
-  setMessages((prev) => [
-    ...prev,
-    { role: "user", text: chip },
-  ]);
-  setIsTyping(true);
+                      setMessages((prev) => [
+                        ...prev,
+                        { role: "user", text: chip },
+                      ]);
+                      setIsTyping(true);
 
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: chip, sessionId }),
-    });
-    const data = await res.json();
-    setMessages((prev) => [
-      ...prev,
-      { role: "bot", text: data.reply, time: new Date(),},
-    ]);
-  } catch {
-    setMessages((prev) => [
-      ...prev,
-      { role: "bot", text: "Something went wrong. Please try again.", time: new Date(), },
-    ]);
-  } finally {
-    setIsTyping(false);
-  }
-}}
+                      try {
+                        const res = await fetch("/api/chat", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ message: chip, sessionId }),
+                        });
+                        const data = await res.json();
+                        setMessages((prev) => [
+                          ...prev,
+                          { role: "bot", text: data.reply, time: new Date() },
+                        ]);
+                      } catch {
+                        setMessages((prev) => [
+                          ...prev,
+                          { role: "bot", text: "Something went wrong. Please try again.", time: new Date() },
+                        ]);
+                      } finally {
+                        setIsTyping(false);
+                      }
+                    }}
                   >
                     {chip}
                   </button>
@@ -311,7 +294,6 @@ useEffect(() => {
           )}
 
           {/* Messages */}
-
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -338,10 +320,10 @@ useEffect(() => {
                 }
               >
                 {msg.text.split("\n").map((line, index) => (
-                <span key={index}>
-                {formatText(line)}
-                <br />
-                </span>
+                  <span key={index}>
+                    {formatText(line)}
+                    <br />
+                  </span>
                 ))}
 
                 <div style={styles.time}>
@@ -356,7 +338,6 @@ useEffect(() => {
           ))}
 
           {/* Typing */}
-
           {isTyping && (
             <div
               style={{
@@ -383,7 +364,6 @@ useEffect(() => {
         </div>
 
         {/* Input */}
-
         <div
           style={{
             ...styles.inputSection,
@@ -444,76 +424,34 @@ const BORDER = "#E4ECEA";
 const styles = {
   outerWrapper: {
     width: "100%",
-    height: "100dvh",
     background: "#EEF5F4",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    padding: "20px",
+    alignItems: "flex-start",
   },
 
   page: {
     width: "100%",
-    maxWidth: "1250px",
-    height: "100%",
-    background: OFF_WHITE,
+    maxWidth: "1400px",
+    background: "#F7FAFA",
     display: "flex",
     flexDirection: "column",
-    overflow: "hidden",
-    borderRadius: "24px",
-    border: `1px solid ${BORDER}`,
-    boxShadow: "0 10px 40px rgba(0,0,0,0.06)",
+    borderRadius: "0px",
+    border: "none",
+    boxShadow: "none",
     fontFamily: "'DM Sans', sans-serif",
-  },
-
-  header: {
-    height: "72px",
-    background: WHITE,
-    borderBottom: `1px solid ${BORDER}`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 28px",
-    flexShrink: 0,
-  },
-
-  logoSection: {
-    display: "flex",
-    alignItems: "center",
-  },
-
-  logo: {
-    height: "38px",
-    objectFit: "contain",
-  },
-
-  statusContainer: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-
-  onlineDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
-    background: "#4CAF50",
-    boxShadow: "0 0 10px rgba(76,175,80,0.5)",
-  },
-
-  statusText: {
-    fontSize: "13px",
-    color: TEXT_MID,
-    fontWeight: "600",
+    minHeight: "550px", // ← Minimum height for chatbot
   },
 
   chatArea: {
     flex: 1,
     overflowY: "auto",
+    overflowX: "hidden",
     padding: "30px",
     display: "flex",
     flexDirection: "column",
     gap: "18px",
+    maxHeight: "500px", // ← Maximum height - scroll internally
   },
 
   emptyState: {
@@ -648,6 +586,7 @@ const styles = {
     borderTop: `1px solid ${BORDER}`,
     padding: "18px 24px 16px",
     transition: "all 0.2s ease",
+    flexShrink: 0,
   },
 
   inputWrapper: {
@@ -666,6 +605,7 @@ const styles = {
     fontSize: "15px",
     outline: "none",
     color: TEXT_DARK,
+    fontFamily: "'DM Sans', sans-serif",
   },
 
   sendButton: {
@@ -677,6 +617,7 @@ const styles = {
     color: WHITE,
     fontSize: "20px",
     cursor: "pointer",
+    flexShrink: 0,
   },
 
   footerText: {
